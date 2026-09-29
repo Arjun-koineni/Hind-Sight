@@ -1,0 +1,9 @@
+{
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index.py?__path__=/$1"
+    }
+  ]
+}

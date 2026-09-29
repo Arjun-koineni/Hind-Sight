@@ -3,7 +3,7 @@ import re
 import json
 import logging
 from datetime import datetime, timezone
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 from groq import Groq
@@ -129,6 +129,7 @@ def call_llm_with_fallback(system_prompt: str, user_prompt: str) -> dict:
 
 # Health check
 @app.route("/health", methods=["GET"])
+@app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({
         "status": "ok",
@@ -137,8 +138,10 @@ def health():
         "hindsight_base_url": HINDSIGHT_BASE_URL
     })
 
+
 # 1. POST /request  {request_text, memory_on}
 @app.route("/request", methods=["POST"])
+@app.route("/api/request", methods=["POST"])
 def procurement_request():
     data = request.get_json(force=True, silent=True) or {}
     request_text = data.get("request_text", "").strip()
@@ -228,6 +231,7 @@ RETURN STRICT JSON WITH THIS SCHEMA:
 
 # 2. POST /outcome  {vendor, material, price, delay_days, quality, verdict, region}
 @app.route("/outcome", methods=["POST"])
+@app.route("/api/outcome", methods=["POST"])
 def record_outcome():
     data = request.get_json(force=True, silent=True) or {}
     vendor = data.get("vendor", "").strip()
@@ -270,6 +274,7 @@ def record_outcome():
 
 # 3. POST /feedback  {text}
 @app.route("/feedback", methods=["POST"])
+@app.route("/api/feedback", methods=["POST"])
 def record_feedback():
     data = request.get_json(force=True, silent=True) or {}
     text = data.get("text", "").strip()
@@ -296,6 +301,7 @@ def record_feedback():
 
 # 4. GET /insights
 @app.route("/insights", methods=["GET"])
+@app.route("/api/insights", methods=["GET"])
 def get_insights():
     query = "What patterns do you see in vendor performance and in this buyer's priorities?"
     client = get_hindsight_client()
@@ -333,6 +339,7 @@ KNOWN_BUYER1_VENDORS = [
 
 # 5. POST /discover  {request_text} (Marketplace layer)
 @app.route("/discover", methods=["POST"])
+@app.route("/api/discover", methods=["POST"])
 def discover_marketplace_vendors():
     data = request.get_json(force=True, silent=True) or {}
     request_text = data.get("request_text", "").strip()
@@ -420,6 +427,30 @@ RETURN STRICT JSON WITH THIS SCHEMA:
     except Exception as e:
         logger.error(f"Error in marketplace discovery: {e}")
         return jsonify({"error": str(e)}), 500
+
+# 6. Static SPA frontend serving
+dist_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_spa(path):
+    # Never hijack /api routes
+    if path.startswith("api/") or path == "api":
+        return jsonify({"error": f"API endpoint '/{path}' not found."}), 404
+
+    if os.path.exists(dist_folder):
+        file_path = os.path.join(dist_folder, path)
+        if path and os.path.exists(file_path) and not os.path.isdir(file_path):
+            return send_from_directory(dist_folder, path)
+        index_file = os.path.join(dist_folder, "index.html")
+        if os.path.exists(index_file):
+            return send_from_directory(dist_folder, "index.html")
+
+    return jsonify({
+        "status": "ok",
+        "service": "SourceMind Full-Stack",
+        "message": "Frontend static assets not found. Run 'npm run build'."
+    })
 
 # Initialize mission on module load
 init_bank_mission()

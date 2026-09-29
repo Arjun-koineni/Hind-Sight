@@ -18,7 +18,7 @@ import {
   LogOut
 } from 'lucide-react'
 
-const API_BASE = 'http://127.0.0.1:5000'
+const API_BASE = import.meta.env.VITE_API_BASE || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://127.0.0.1:5000' : '/api')
 
 // Default role profiles for Buyer, Seller, and Vendor (editable)
 const DEFAULT_PROFILES = {
