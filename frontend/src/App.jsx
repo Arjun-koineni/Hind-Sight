@@ -12,10 +12,50 @@ import {
   ChevronUp,
   RefreshCw,
   AlertCircle,
-  Plus
+  Plus,
+  User,
+  LogIn,
+  LogOut
 } from 'lucide-react'
 
 const API_BASE = 'http://127.0.0.1:5000'
+
+// Default role profiles for Buyer, Seller, and Vendor (editable)
+const DEFAULT_PROFILES = {
+  buyer: {
+    role: "Buyer",
+    name: "Vikram Sharma",
+    title: "Head of Procurement",
+    company: "Precision Fabrications Pvt Ltd",
+    hub: "Pune, Maharashtra",
+    phone: "+91 98201 44520",
+    gstin: "27AAACP1234M1Z5",
+    categories: "Structural steel, CNC fittings, Fasteners",
+    bankId: "buyer1"
+  },
+  seller: {
+    role: "Seller",
+    name: "Sunil Jain",
+    title: "Commercial Director",
+    company: "Deccan Materials & Spares",
+    hub: "Hyderabad, Telangana",
+    phone: "+91 94401 88214",
+    gstin: "36AABCS9921D1ZO",
+    categories: "Industrial metals, Tubes, Hydraulic pipes",
+    bankId: "marketplace"
+  },
+  vendor: {
+    role: "Vendor",
+    name: "Ramesh Patel",
+    title: "Managing Partner",
+    company: "Apex Industrial Supplies",
+    hub: "Bhosari MIDC, Pune",
+    phone: "+91 98220 11984",
+    gstin: "27AABCA4589R1ZV",
+    categories: "Black iron pipe, Seamless tubing",
+    bankId: "buyer1"
+  }
+}
 
 // Registry of known vendors with realistic Indian hubs and baseline metrics
 const VENDOR_DIRECTORY = {
@@ -92,6 +132,39 @@ export default function App() {
     { id: "PO-2042", date: "14 Sep 2026", vendor: "Coastal Timber & Pallets", material: "Export crates (100 units)", price: "₹1,450/pc", delay: "0d", quality: "ISPM-15", verdict: "On schedule" },
     { id: "PO-2041", date: "02 Sep 2026", vendor: "Apex Industrial Supplies", material: "Black iron pipe (2,000m)", price: "₹175/m", delay: "15d late", quality: "Acceptable", verdict: "Cheapest, but 15-day delay halted line" }
   ])
+
+  // User Login & Profile State (defaults to Buyer so no sign-in is required up-front)
+  const [currentUser, setCurrentUser] = useState(DEFAULT_PROFILES.buyer)
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [authFormData, setAuthFormData] = useState({ ...DEFAULT_PROFILES.buyer })
+  const [profileSuccessNotice, setProfileSuccessNotice] = useState(null)
+
+  const handleOpenAuthModal = (presetKey) => {
+    const roleKey = presetKey || (currentUser?.role ? currentUser.role.toLowerCase() : 'buyer')
+    setAuthFormData({ ...(DEFAULT_PROFILES[roleKey] || DEFAULT_PROFILES.buyer), ...(currentUser || {}) })
+    setIsAuthModalOpen(true)
+  }
+
+  const handleSelectRolePreset = (roleKey) => {
+    if (DEFAULT_PROFILES[roleKey]) {
+      setAuthFormData({ ...DEFAULT_PROFILES[roleKey] })
+    }
+  }
+
+  const handleSaveProfile = (e) => {
+    e.preventDefault()
+    setCurrentUser({ ...authFormData })
+    setProfileSuccessNotice(`Active profile updated: ${authFormData.name} (${authFormData.role} · ${authFormData.company})`)
+    setIsAuthModalOpen(false)
+    setTimeout(() => setProfileSuccessNotice(null), 4000)
+  }
+
+  const handleSignOut = () => {
+    setCurrentUser(null)
+    setIsAuthModalOpen(false)
+    setProfileSuccessNotice("Signed out. Operating in Guest mode.")
+    setTimeout(() => setProfileSuccessNotice(null), 3000)
+  }
 
   useEffect(() => {
     fetchInsights()
@@ -311,8 +384,14 @@ export default function App() {
           <div>Memory Bank:</div>
           <div className="bank-tag">
             <span className="bank-dot"></span>
-            <span>buyer1 (Active)</span>
+            <span>{currentUser?.bankId || 'buyer1'} (Active)</span>
           </div>
+          {currentUser && (
+            <div className="sidebar-user-info">
+              <div className="sidebar-user-name">{currentUser.name}</div>
+              <div className="sidebar-user-sub">{currentUser.role} · {currentUser.company}</div>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -341,8 +420,38 @@ export default function App() {
                 <Plus size={14} />
                 <span>Log outcome</span>
               </button>
+
+              {currentUser ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm user-profile-btn"
+                  onClick={() => handleOpenAuthModal()}
+                  title="Click to switch role or edit details"
+                >
+                  <User size={13} />
+                  <span className="user-role-badge">{currentUser.role}</span>
+                  <span className="user-name-text">{currentUser.name}</span>
+                  <ChevronDown size={11} style={{ color: 'var(--text-subtle)' }} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm login-btn"
+                  onClick={() => handleOpenAuthModal('buyer')}
+                >
+                  <LogIn size={13} />
+                  <span>Log in</span>
+                </button>
+              )}
             </div>
           </div>
+
+          {profileSuccessNotice && (
+            <div className="alert-box success" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Check size={14} />
+              <span>{profileSuccessNotice}</span>
+            </div>
+          )}
 
           {/* VIEW: SOURCING (MAIN) */}
           {activeNav === 'sourcing' && (
@@ -1003,6 +1112,185 @@ export default function App() {
                   disabled={submittingOutcome || !drawerMaterial.trim()}
                 >
                   {submittingOutcome ? "Saving..." : "Log outcome"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Account & Role Profile Modal (Buyer / Seller / Vendor with details editor) */}
+      {isAuthModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsAuthModalOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">Account & Role Profile</h3>
+                <p className="modal-subtitle">
+                  Select a role (Buyer, Seller, or Vendor) and add or update your business details.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setIsAuthModalOpen(false)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Quick Role Switcher Strip */}
+            <div className="role-switcher-strip">
+              <span className="role-switcher-label">Switch Role:</span>
+              <div className="role-tab-group">
+                {(['buyer', 'seller', 'vendor']).map((rKey) => {
+                  const isSelected = authFormData.role?.toLowerCase() === rKey
+                  const p = DEFAULT_PROFILES[rKey]
+                  return (
+                    <button
+                      key={rKey}
+                      type="button"
+                      className={`role-tab-btn ${isSelected ? 'active' : ''}`}
+                      onClick={() => handleSelectRolePreset(rKey)}
+                    >
+                      <span className="role-tab-name">{p.role}</span>
+                      <span className="role-tab-sub">({p.company.split(' ')[0]})</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Editable Details Form */}
+            <form onSubmit={handleSaveProfile} className="modal-body">
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Full Name</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={authFormData.name || ''}
+                    onChange={(e) => setAuthFormData({ ...authFormData, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Role</label>
+                  <select
+                    className="input-field"
+                    value={authFormData.role || 'Buyer'}
+                    onChange={(e) => setAuthFormData({ ...authFormData, role: e.target.value })}
+                  >
+                    <option value="Buyer">Buyer (Procurement Manager)</option>
+                    <option value="Seller">Seller (Industrial Trader / Distributor)</option>
+                    <option value="Vendor">Vendor (Manufacturing Supplier)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Company / Business Name</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={authFormData.company || ''}
+                    onChange={(e) => setAuthFormData({ ...authFormData, company: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Job Title / Designation</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={authFormData.title || ''}
+                    onChange={(e) => setAuthFormData({ ...authFormData, title: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Location / Hub</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. Pune, MH"
+                    value={authFormData.hub || ''}
+                    onChange={(e) => setAuthFormData({ ...authFormData, hub: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Phone / WhatsApp</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. +91 98201 44520"
+                    value={authFormData.phone || ''}
+                    onChange={(e) => setAuthFormData({ ...authFormData, phone: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">GSTIN / Tax ID</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. 27AAACP1234M1Z5"
+                    value={authFormData.gstin || ''}
+                    onChange={(e) => setAuthFormData({ ...authFormData, gstin: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Hindsight Memory Bank</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={authFormData.bankId || 'buyer1'}
+                    onChange={(e) => setAuthFormData({ ...authFormData, bankId: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Product Categories / Sourcing Scope</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="e.g. Structural steel, fasteners, packaging"
+                  value={authFormData.categories || ''}
+                  onChange={(e) => setAuthFormData({ ...authFormData, categories: e.target.value })}
+                />
+              </div>
+
+              <div className="modal-footer">
+                {currentUser && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleSignOut}
+                    style={{ marginRight: 'auto' }}
+                  >
+                    <LogOut size={13} />
+                    <span>Sign out</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setIsAuthModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                >
+                  <Check size={13} />
+                  <span>Save details & Log in</span>
                 </button>
               </div>
             </form>
